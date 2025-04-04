@@ -34,6 +34,9 @@ from .pages.belts import belts
 from .pages.index import static_html_override
 from .api import api
 
+# custom
+from .pages.submissions import submissions_bp
+from .api.v1.cas_auth import cas_auth_bp
 
 class DojoChallenge(BaseChallenge):
     id = "dojo"
@@ -148,6 +151,11 @@ def load(app):
     app.register_blueprint(writeups)
     app.register_blueprint(belts)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
+
+    # custom
+    app.register_blueprint(submissions_bp)
+    app.register_blueprint(cas_auth_bp)
+
 
     app.jinja_env.filters["markdown"] = render_markdown
 

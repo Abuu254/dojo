@@ -20,13 +20,14 @@
         {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", service="code"), "fa-terminal") }}
         {{ navitem("Desktop", url_for("pwncollege_workspace.view_workspace", service="desktop"), "fa-desktop") }}
         {{ navitem("Help", url_for("pwncollege_sensai.view_sensai"), "fa-question", new=True) }}
-        {{ navitem("Chat", "https://discord.gg/pwncollege", "fa-comments", new=True) }}
+        <!-- {{ navitem("Chat", "https://discord.gg/pwncollege", "fa-comments", new=True) }} -->
       </ul>
       <hr class="d-sm-flex d-md-flex d-lg-none">
       <ul class="navbar-nav ml-md-auto d-block d-sm-flex d-md-flex">
         {% if authed() %}
         {% if is_admin() %}
           {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench", shrink=True) }}
+          {{ navitem("View Submissions", url_for("submissions.view"), "fa-file-alt", shrink=True) }} <!-- New URL for viewing submissions -->
         {% endif %}
         {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle", shrink=True) }}
         {{ navitem("Settings", url_for("views.settings"), "fa-cogs", shrink=True) }}
@@ -137,8 +138,8 @@
         {% if registration_visible() %}
         {{ navitem("Register", url_for("auth.register"), "fa-user-plus") }}
         {% endif %}
-
         {{ navitem("Login", url_for("auth.login", next=request.full_path), "fa-sign-in-alt") }}
+        {{ navitem("Login (CAS)", url_for("cas_auth.cas_login", next=request.full_path), "fa-key") }}
         {% endif %}
 
         <li class="nav-item">

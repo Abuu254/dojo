@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros/widgets.html" import accordion_item %}
+
+{% block content %}
+  <div class="container">
+    <h2 class="mt-4">Admin - View Submissions</h2> <!-- Added margin-top for spacing -->
+
+    <div class="accordion" id="usersAccordion">
+      {% for user, dojos in grouped_submissions.items() %}
+        {% call(header) accordion_item("usersAccordion", loop.index) %}
+          {% if header %}
+            <h3 class="accordion-item-name">{{ user }}</h3>
+          {% else %}
+            <div class="accordion" id="dojos-{{ loop.index }}">
+              {% for dojo, submissions in dojos.items() %}
+                {% call(header) accordion_item("dojos-{}".format(loop.index), loop.index) %}
+                  {% if header %}
+                    <h4 class="accordion-item-name">{{ dojo }}</h4>
+                  {% else %}
+                    <table class="table table-bordered table-striped"> <!-- Added striped rows -->
+                      <tr>
+                        <th>Challenge</th>
+                        <th>Answer</th>
+                        <th>Type</th>
+                        <th>Timestamp</th>
+                      </tr>
+                      {% for submission in submissions %}
+                      <tr>
+                        <td>{{ submission.challenge.name }}</td>
+                        <td>{{ submission.provided }}</td>
+                        <td>{{ submission.type }}</td>
+                        <td>{{ submission.date.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                      </tr>
+                      {% endfor %}
+                    </table>
+                  {% endif %}
+                {% endcall %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endcall %}
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

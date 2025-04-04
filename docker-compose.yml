@@ -102,6 +102,7 @@ services:
       - MAC_USERNAME=${MAC_USERNAME}
       - MAC_KEY_FILE=${MAC_KEY_FILE}
       - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
+      - YALIES_API_TOKEN=${YALIES_API_TOKEN}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads

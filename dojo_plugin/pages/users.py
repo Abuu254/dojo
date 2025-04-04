@@ -10,9 +10,10 @@ from CTFd.utils.decorators import authed_only
 from CTFd.models import db, Users, Challenges, Solves
 from CTFd.cache import cache
 
-from ..models import Dojos, DojoModules, DojoChallenges
+from ..models import Dojos, DojoModules, DojoChallenges, DojoStudents
 from ..utils.scores import dojo_scores, module_scores
 from ..utils.awards import get_belts, get_viewable_emojis
+from ..pages.course import grade
 
 
 users = Blueprint("pwncollege_users", __name__)
@@ -24,27 +25,38 @@ def view_hacker(user, bypass_hidden=False):
 
     dojos = (Dojos
              .viewable(user=get_current_user())
-             .filter(Dojos.data["type"] != "hidden", Dojos.data["type"] != "course")
+             .filter(Dojos.data["type"] != "hidden")
              .all())
     user_solves = {}
+    course_grade_details = {}
     for dojo in dojos:
-        dojo_id = dojo.id
-        user_solves[dojo_id] = {}
+        if not dojo.course:
+            dojo_id = dojo.id
+            user_solves[dojo_id] = {}
 
-        for module in dojo.modules:
-            module_id = module.id
-            solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
+            for module in dojo.modules:
+                module_id = module.id
+                solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
 
-            if solves:
-                user_solves[dojo_id][module_id] = {
-                    solve.challenge_id: solve.date.strftime("%Y-%m-%d %H:%M:%S") for solve in solves
-                }
+                if solves:
+                    user_solves[dojo_id][module_id] = {
+                        solve.challenge_id: solve.date.strftime("%Y-%m-%d %H:%M:%S") for solve in solves
+                    }
+        if dojo.course:
+            student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+            if student and student.official:
+                result = next(grade(dojo, user, ignore_pending=True), None)
+                if result:
+                    course_grade_details[dojo.id] = result
+
     return render_template(
         "hacker.html",
         dojos=dojos, user=user,
         dojo_scores=dojo_scores(), module_scores=module_scores(),
         belts=get_belts(), badges=get_viewable_emojis(user),
-        user_solves=user_solves
+        user_solves=user_solves,
+        course_grades=course_grade_details,
+        current_user=get_current_user()
     )
 
 @users.route("/hacker/<int:user_id>")
