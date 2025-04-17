@@ -17,7 +17,7 @@ def view():
     # Get only the course dojo
     course_dojo = Dojos.query.filter(Dojos.data["type"] == "course").first()
     if not course_dojo:
-        return "No course dojo found", 404
+        return render_template("submissions.html", grouped={})
 
     # Get challenges for that dojo
     dojo_challenges = (

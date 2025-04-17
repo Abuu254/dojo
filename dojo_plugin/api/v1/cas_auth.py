@@ -38,7 +38,7 @@ def cas_callback():
     username = match.group(1).strip()
 
     user = Users.query.filter_by(name=username).first()
-    person = get_user(username)
+    # person = get_user(username)
     if not user:
         user = Users(name=username, email=person.get('email', f"{username}@yale.edu"), password=None, verified=True)
         db.session.add(user)
