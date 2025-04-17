@@ -3,17 +3,18 @@ import hashlib
 import itertools
 import re
 
-from flask import Blueprint, Response, render_template, abort, url_for
+from flask import Blueprint, Response, render_template, abort, url_for, request, redirect, flash
 from sqlalchemy.sql import and_, or_
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.models import db, Users, Challenges, Solves
 from CTFd.cache import cache
 
-from ..models import Dojos, DojoModules, DojoChallenges, DojoStudents
+from ..models import Dojos, DojoModules, DojoChallenges, DojoStudents, LateDayUsage
 from ..utils.scores import dojo_scores, module_scores
 from ..utils.awards import get_belts, get_viewable_emojis
 from ..pages.course import grade
+from ..utils.dojo import dojo_route
 
 
 users = Blueprint("pwncollege_users", __name__)
@@ -29,6 +30,8 @@ def view_hacker(user, bypass_hidden=False):
              .all())
     user_solves = {}
     course_grade_details = {}
+    late_day_usage = {}
+
     for dojo in dojos:
         if not dojo.course:
             dojo_id = dojo.id
@@ -48,6 +51,14 @@ def view_hacker(user, bypass_hidden=False):
                 result = next(grade(dojo, user, ignore_pending=True), None)
                 if result:
                     course_grade_details[dojo.id] = result
+                # Add late day usage per course
+                total_late_days = dojo.course.get("late_days", 0)
+                used_late_days = (
+                    db.session.query(db.func.sum(LateDayUsage.late_days_used))
+                    .filter_by(user_id=user.id, dojo_id=dojo.dojo_id)
+                    .scalar()
+                ) or 0
+                late_day_usage[dojo.id] = (used_late_days, total_late_days)
 
     return render_template(
         "hacker.html",
@@ -56,7 +67,8 @@ def view_hacker(user, bypass_hidden=False):
         belts=get_belts(), badges=get_viewable_emojis(user),
         user_solves=user_solves,
         course_grades=course_grade_details,
-        current_user=get_current_user()
+        current_user=get_current_user(),
+        late_day_usage=late_day_usage,
     )
 
 @users.route("/hacker/<int:user_id>")

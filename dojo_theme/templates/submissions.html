@@ -2,44 +2,48 @@
 {% from "macros/widgets.html" import accordion_item %}
 
 {% block content %}
-  <div class="container">
-    <h2 class="mt-4">Admin - View Submissions</h2> <!-- Added margin-top for spacing -->
+<div class="container">
+  <h2 class="mt-4">Admin - View Submissions</h2>
 
-    <div class="accordion" id="usersAccordion">
-      {% for user, dojos in grouped_submissions.items() %}
-        {% call(header) accordion_item("usersAccordion", loop.index) %}
-          {% if header %}
-            <h3 class="accordion-item-name">{{ user }}</h3>
-          {% else %}
-            <div class="accordion" id="dojos-{{ loop.index }}">
-              {% for dojo, submissions in dojos.items() %}
-                {% call(header) accordion_item("dojos-{}".format(loop.index), loop.index) %}
-                  {% if header %}
-                    <h4 class="accordion-item-name">{{ dojo }}</h4>
-                  {% else %}
-                    <table class="table table-bordered table-striped"> <!-- Added striped rows -->
+  <div class="accordion" id="usersAccordion">
+    {% for user, modules in grouped.items() %}
+      {% call(header) accordion_item("usersAccordion", loop.index) %}
+        {% if header %}
+          <h3 class="accordion-item-name">{{ user }}</h3>
+        {% else %}
+          <div class="accordion" id="modules-{{ loop.index }}">
+            {% for module, items in modules.items() %}
+              {% call(header) accordion_item("modules-{}".format(loop.index), loop.index) %}
+                {% if header %}
+                  <h5 class="accordion-item-name">{{ module }}</h5>
+                {% else %}
+                  <table class="table table-sm table-bordered table-striped">
+                    <thead>
                       <tr>
                         <th>Challenge</th>
+                        <th>Answered</th>
                         <th>Answer</th>
-                        <th>Type</th>
                         <th>Timestamp</th>
                       </tr>
-                      {% for submission in submissions %}
+                    </thead>
+                    <tbody>
+                      {% for challenge, submission in items %}
                       <tr>
-                        <td>{{ submission.challenge.name }}</td>
-                        <td>{{ submission.provided }}</td>
-                        <td>{{ submission.type }}</td>
-                        <td>{{ submission.date.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>{{ challenge.name }}</td>
+                        <td>{{ "✓" if submission else "✕" }}</td>
+                        <td>{{ submission.provided if submission else "-" }}</td>
+                        <td>{{ submission.date.strftime('%Y-%m-%d %H:%M:%S') if submission else "-" }}</td>
                       </tr>
                       {% endfor %}
-                    </table>
-                  {% endif %}
-                {% endcall %}
-              {% endfor %}
-            </div>
-          {% endif %}
-        {% endcall %}
-      {% endfor %}
-    </div>
+                    </tbody>
+                  </table>
+                {% endif %}
+              {% endcall %}
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endcall %}
+    {% endfor %}
   </div>
+</div>
 {% endblock %}

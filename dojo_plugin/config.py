@@ -98,7 +98,7 @@ WINDOWS_VM_ENABLED = os.getenv("WINDOWS_VM") == "full"
 CAS_SERVER = os.getenv("CAS_SERVER", "https://secure.its.yale.edu/cas")
 SERVICE_URL = os.getenv("SERVICE_URL", "http://localhost:64323/cas/callback")
 YALIES_API_TOKEN = os.getenv("YALIES_API_TOKEN")
-YALIES_API_TOKEN = 'b74YHWOfRwifOjN2BwbiGA2yYYlMqfa2Piuw-fc7lGpMwP_vTxMhkA'
+# YALIES_API_TOKEN = 'b74YHWOfRwifOjN2BwbiGA2yYYlMqfa2Piuw-fc7lGpMwP_vTxMhkA'
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 for config_option in missing_errors:
     config_value = globals()[config_option]

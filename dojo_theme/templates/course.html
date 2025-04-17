@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/widgets.html" import accordion_item %}
 
 {% block stylesheets %}
 <style>
@@ -23,6 +24,13 @@
     content: '?';
     color: rgb(255, 193, 7);
   }
+
+  .accordion .table-sm {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
+
+
 </style>
 {% endblock %}
 
@@ -54,47 +62,79 @@
         </div>
 
         {% if user %}
-          <div class="tab-pane fade show" id="grades" role="tabpanel">
-            <h3>{{ name }} current grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
-            <br>
-            <div id="grades" class="row">
-              <div class="col-md-12">
-                <table class="table table-striped">
-                  <thead>
-                    <tr>
-                      <td scope="col"><b>Name</b></td>
-                      <td scope="col"><b>Date</b></td>        
-                      {% if show_extra_late_date %}
-                      <td scope="col"><b>Extra Late Date</b></td>
-                      {% endif %}                                    
-                      <td scope="col"><b>Weight</b></td>
-                      <td scope="col"><b>Progress</b></td>
-                      <td scope="col"><b>Credit</b></td>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for assessment_grade in assessment_grades %}
-                    {% if assessment_grade.credit is boolean %}
-                      {% set credit = "✓" if assessment_grade.credit else "✕" %}
-                    {% elif assessment_grade.credit is number %}
-                      {% set credit = "%.2f%%" | format(100 * assessment_grade.credit) %}
-                    {% endif %}
-                    <tr>
-                      <td>{{ assessment_grade.name }}</td>
-                      <td>{{ assessment_grade.date }}</td>
-                      {% if show_extra_late_date %}
-                      <td>{{ assessment_grade.extra_late_date }}</td>
-                      {% endif %}
-                      <td>{{ assessment_grade.weight }}</td>
-                      <td>{{ assessment_grade.progress }}</td>
-                      <td>{{ credit }}</td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <div class="tab-pane fade show" id="grades" role="tabpanel">
+          <h3>{{ name }} current grade in the class:
+            <code style="font-size: 2em">{{ letter_grade }}</code>
+            ({{ "%.2f%%"|format(100 * overall_grade) }})
+          </h3>
+
+          <div class="accordion mt-4" id="course-modules">
+            {% for assessment_grade in assessment_grades %}
+              {% call(header) accordion_item("course-modules", loop.index) %}
+                {% if header %}
+                <div class="w-100">
+                  <h4 class="mb-2">{{ assessment_grade.name }}</h4>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Due Date</th>
+                        {% if show_extra_late_date and assessment_grade.extra_late_date %}
+                          <th>Extra Late Date</th>
+                        {% endif %}
+                        <th>Weight</th>
+                        <th>Progress</th>
+                        <th>Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{{ assessment_grade.date }}</td>
+                        {% if show_extra_late_date and assessment_grade.extra_late_date %}
+                          <td>{{ assessment_grade.extra_late_date }}</td>
+                        {% endif %}
+                        <td>{{ "%.2f" | format(assessment_grade.weight) }}</td>
+                        <td>{{ assessment_grade.progress }}</td>
+                        <td>
+                          {% if assessment_grade.credit is boolean %}
+                            {{ "✓" if assessment_grade.credit else "✕" }}
+                          {% elif assessment_grade.credit is number %}
+                            {{ "%.2f%%" | format(100 * assessment_grade.credit) }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                  {% if assessment_grade.challenges %}
+                    <table style="font-size: 1rem;">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Status</th>
+                          <th>Timestamp</th>
+                          <th>Weight</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for ch in assessment_grade.challenges %}
+                          <tr>
+                            <td>{{ ch.name }}</td>
+                            <td>{{ "✓" if ch.solved else "✕" }}</td>
+                            <td>{{ ch.timestamp or "--" }}</td>
+                            <td>{{ "%.2f%%" | format(ch.weight * 100) }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  {% else %}
+                    <p>No challenges for this module.</p>
+                  {% endif %}
+                {% endif %}
+              {% endcall %}
+            {% endfor %}
           </div>
+        </div>
 
           <div class="tab-pane fade" id="identity" role="tabpanel">
             <form method="post" id="identity-form" autocomplete="off">

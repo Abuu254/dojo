@@ -814,6 +814,19 @@ class WorkspaceTokens(db.Model):
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.id!r}>"
 
+class LateDayUsage(db.Model):
+    __tablename__ = "late_day_usage"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"))
+    module_id = db.Column(db.String(32))  # matches assessment["id"]
+    late_days_used = db.Column(db.Integer, default=0)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "dojo_id", "module_id"),
+    )
+
 
 for deferral in deferred_definitions:
     deferral()

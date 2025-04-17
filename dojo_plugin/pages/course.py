@@ -10,7 +10,7 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity, LateDayUsage
 from ..utils import is_dojo_admin
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
@@ -40,6 +40,52 @@ def assessment_name(dojo, assessment):
         return assessment.get("name", "Discord Memes")
     return ""
 
+def apply_late_days(dojo, user_id, user_solves, assessments, allowed_late_days):
+    remaining_late_days = allowed_late_days
+    applied_late_days = {}  # {module_id: days_used}
+
+    # Sort assessments by due date
+    sorted_due_assessments = sorted(
+        [a for a in assessments if a["type"] == "due"],
+        key=lambda a: datetime.datetime.fromisoformat(a["date"])
+    )
+
+    for assessment in sorted_due_assessments:
+        module_id = assessment["id"]
+        due_date = datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc)
+
+        # find latest solve date for that module
+        module = next((m for m in dojo.modules if m.id == module_id), None)
+        if not module:
+            continue
+        solve_dates = [
+            dt for ch_id, dt in user_solves.get(user_id, {}).items()
+            if any(ch.challenge_id == ch_id for ch in module.challenges)
+        ]
+        if not solve_dates:
+            continue
+
+        latest_solve = max(solve_dates)
+        if latest_solve.tzinfo is None:
+            latest_solve = latest_solve.replace(tzinfo=datetime.timezone.utc)
+        if latest_solve <= due_date:
+            applied_late_days[module_id] = 0
+            continue
+
+        days_late = math.ceil((latest_solve - due_date).total_seconds() / 86400)
+        used = min(remaining_late_days, days_late)
+        applied_late_days[module_id] = used
+        remaining_late_days -= used
+
+        # Update DB
+        usage = LateDayUsage.query.filter_by(user_id=user_id, dojo_id=dojo.dojo_id, module_id=module_id).first()
+        if usage:
+            usage.late_days_used = used
+        else:
+            db.session.add(LateDayUsage(user_id=user_id, dojo_id=dojo.dojo_id, module_id=module_id, late_days_used=used))
+
+    db.session.commit()
+    return applied_late_days
 
 def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
@@ -106,6 +152,10 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     [(False, None)])
         ).label(label)
 
+    all_solves = dojo.solves(ignore_visibility=True).all()
+    user_challenge_solves = collections.defaultdict(dict)
+    for solve in all_solves:
+        user_challenge_solves[solve.user_id][solve.challenge_id] = solve.date
     solves = (
         dojo
         .solves(ignore_visibility=True)
@@ -174,8 +224,10 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
         return " ".join(week_string(week) for week in weekly_memes(dojo, discord_user))
 
-    def result(user_id):
+    def result(user_id, user_challenge_solves=user_challenge_solves):
         assessment_grades = []
+        # apply late days
+        applied_late_days = apply_late_days(dojo, user_id, user_challenge_solves, assessments, dojo.course.get("late_days", 6))
 
         def limiter(limit):
             def decorator(func):
@@ -219,11 +271,11 @@ def grade(dojo, users_query, *, ignore_pending=False):
         for assessment in assessments:
             type = assessment.get("type")
 
-            date = datetime.datetime.fromisoformat(assessment["date"]) if "date" in assessment else None
+            date = datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc) if "date" in assessment else None
             if ignore_pending and date and date > now:
                 continue
 
-            extra_late_date = datetime.datetime.fromisoformat(assessment["extra_late_date"]) if "extra_late_date" in assessment else None
+            extra_late_date = datetime.datetime.fromisoformat(assessment["extra_late_date"]).astimezone(datetime.timezone.utc) if "extra_late_date" in assessment else None
 
             if type == "checkpoint":
                 module_id = assessment["id"]
@@ -253,6 +305,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 extra_late_penalty = assessment.get("extra_late_penalty", 0.0)
 
                 extension = get_student_value(assessment.get("extensions"), user_id, 0)
+                extension += applied_late_days.get(module_id, 0)
                 override = get_student_value(assessment.get("overrides"), user_id)
 
                 challenge_count = challenge_counts[module_id]
@@ -279,10 +332,44 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 else:
                     progress = f"{due_solves} (+{late_solves},+{extra_late_solves}) / {challenge_count_required}"
 
+                # add challenge level
+                module = next((m for m in dojo.modules if m.id == module_id), None)
+                challenge_weights = assessment.get("challenge_weights", {})
+                challenge_data = []
+
+                if module:
+                    for challenge in module.challenges:
+                        solve_date = user_challenge_solves.get(user_id, {}).get(challenge.challenge_id)
+                        solved = solve_date is not None
+                        timestamp = solve_date.isoformat() if solved else None
+                        challenge_weight = challenge_weights.get(challenge.id, 1 / len(module.challenges))
+                        challenge_data.append({
+                            "id": challenge.challenge_id,
+                            "name": challenge.name,
+                            "solved": solved,
+                            "timestamp": timestamp,
+                            "weight": challenge_weight,
+                        })
+
+                # Compute weighted credit based on solve time
                 if override is None:
-                    late_points = late_value * capped_late_solves
-                    extra_late_points = extra_late_value * capped_extra_late_solves
-                    credit = min((due_solves +  late_points + extra_late_points ) / challenge_count_required, 1.0) if challenge_count_required > 0 else 0
+                    total_weight = 0
+                    weighted_score = 0
+                    for ch in challenge_data:
+                        w = ch["weight"]
+                        score = 0.0
+
+                        if ch["solved"] and ch["timestamp"]:
+                            solve_time = datetime.datetime.fromisoformat(ch["timestamp"]).astimezone(datetime.timezone.utc)
+
+                            if solve_time < user_date:
+                                score = 1.0
+                            else:
+                                score = late_value
+
+                        weighted_score += score * w
+                        total_weight += w
+                    credit = min(weighted_score / total_weight, 1.0) if total_weight > 0 else 0.0
                 else:
                     credit = override
                     progress = f"{progress} *"
@@ -294,7 +381,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     weight=weight,
                     progress=progress,
                     credit=credit,
-                    module_id=module_id
+                    module_id=module_id,
+                    challenges=challenge_data  # attach challenge details
                 ))
 
             if type == "manual":

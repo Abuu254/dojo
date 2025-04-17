@@ -57,6 +57,16 @@
       </div>
     </div>
   </div>
+  {% if user.id == current_user.id or current_user.type == "admin" %}
+    {% for dojo in dojos %}
+    {% if dojo.id in late_day_usage and dojo.course %}
+      {% set used, total = late_day_usage[dojo.id] %}
+      <div class="container mt-3">
+        <h4>Late Days <strong>Used:</strong> {{ used }} / {{ total }}</h4>
+      </div>
+    {% endif %}
+  {% endfor %}
+  {% endif %}
 
   <!-- displaying grades -->
   {% for dojo in dojos %}
@@ -74,7 +84,7 @@
                 <thead>
                   <tr>
                     <td><b>Name</b></td>
-                    <td><b>Date</b></td>
+                    <td><b>Due Date</b></td>
                     {% if course_grades[dojo.id].show_extra_late_date %}
                       <td><b>Extra Late Date</b></td>
                     {% endif %}
