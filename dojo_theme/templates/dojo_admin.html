@@ -57,6 +57,14 @@
       </figure>
     </div>
     {% endif %}
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_dojo_activity', dojo=dojo.reference_id) }}">
+          <i class="fas fa-chart-line fa-3x"></i>
+          <figcaption><b>Activity</b></figcaption>
+        </a>
+      </figure>
+    </div>
   </div>
   <div>
     <form method="post" id="dojo-award-prune-form" autocomplete="off">
