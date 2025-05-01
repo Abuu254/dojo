@@ -41,51 +41,64 @@ def assessment_name(dojo, assessment):
     return ""
 
 def apply_late_days(dojo, user_id, user_solves, assessments, allowed_late_days):
+    from collections import defaultdict
+    from datetime import datetime, timezone, timedelta
+
     remaining_late_days = allowed_late_days
-    applied_late_days = {}  # {module_id: days_used}
+    applied_late_days = defaultdict(int)
 
-    # Sort assessments by due date
-    sorted_due_assessments = sorted(
-        [a for a in assessments if a["type"] == "due"],
-        key=lambda a: datetime.datetime.fromisoformat(a["date"])
-    )
-
-    for assessment in sorted_due_assessments:
+    # Map challenge_id to (module_id, due_date)
+    challenge_due_map = {}
+    for assessment in assessments:
+        if assessment["type"] != "due":
+            continue
         module_id = assessment["id"]
-        due_date = datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc)
-
-        # find latest solve date for that module
+        due_date = datetime.fromisoformat(assessment["date"]).astimezone(timezone.utc)
         module = next((m for m in dojo.modules if m.id == module_id), None)
         if not module:
             continue
-        solve_dates = [
-            dt for ch_id, dt in user_solves.get(user_id, {}).items()
-            if any(ch.challenge_id == ch_id for ch in module.challenges)
-        ]
-        if not solve_dates:
+        for challenge in module.challenges:
+            challenge_due_map[challenge.challenge_id] = (module_id, due_date)
+
+    # Gather all late solve times
+    late_solves = []
+    for ch_id, solve_time in user_solves.get(user_id, {}).items():
+        if ch_id in challenge_due_map:
+            module_id, due = challenge_due_map[ch_id]
+            if solve_time.tzinfo is None:
+                solve_time = solve_time.replace(tzinfo=timezone.utc)
+            else:
+                solve_time = solve_time.astimezone(timezone.utc)
+
+            if solve_time > due:
+                late_solves.append((solve_time, module_id, due))
+
+
+    # Group solves into 24-hour windows from the due date
+    used_windows = set()
+    for solve_time, module_id, due in sorted(late_solves):
+        window_index = math.floor((solve_time - due).total_seconds() / 86400)
+        if window_index < 0:
             continue
+        if window_index not in used_windows and remaining_late_days > 0:
+            # Apply one late day to each module involved
+            used_windows.add(window_index)
+            for _, mod_id, _ in filter(lambda x: math.floor((x[0] - x[2]).total_seconds() / 86400) == window_index, late_solves):
+                if applied_late_days[mod_id] == 0:  # Only apply once per module
+                    applied_late_days[mod_id] = 1
+            remaining_late_days -= 1
 
-        latest_solve = max(solve_dates)
-        if latest_solve.tzinfo is None:
-            latest_solve = latest_solve.replace(tzinfo=datetime.timezone.utc)
-        if latest_solve <= due_date:
-            applied_late_days[module_id] = 0
-            continue
-
-        days_late = math.ceil((latest_solve - due_date).total_seconds() / 86400)
-        used = min(remaining_late_days, days_late)
-        applied_late_days[module_id] = used
-        remaining_late_days -= used
-
-        # Update DB
+    # Persist to DB
+    for module_id, used in applied_late_days.items():
         usage = LateDayUsage.query.filter_by(user_id=user_id, dojo_id=dojo.dojo_id, module_id=module_id).first()
         if usage:
             usage.late_days_used = used
         else:
             db.session.add(LateDayUsage(user_id=user_id, dojo_id=dojo.dojo_id, module_id=module_id, late_days_used=used))
-
     db.session.commit()
-    return applied_late_days
+
+    return dict(applied_late_days)
+
 
 def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
