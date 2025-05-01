@@ -28,6 +28,7 @@
         {% if is_admin() %}
           {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench", shrink=True) }}
           {{ navitem("View Submissions", url_for("submissions.view"), "fa-file-alt", shrink=True) }} <!-- New URL for viewing submissions -->
+          {{ navitem("Docker Desktops", url_for("admin_docker.view_admin_desktops"), "fa-desktop", shrink=True) }}
         {% endif %}
         {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle", shrink=True) }}
         {{ navitem("Settings", url_for("views.settings"), "fa-cogs", shrink=True) }}
