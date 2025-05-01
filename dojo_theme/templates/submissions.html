@@ -1,49 +1,49 @@
 {% extends "base.html" %}
-{% from "macros/widgets.html" import accordion_item %}
+
+{% block stylesheets %}
+<style>
+  /* Give the student list a subtle grey background */
+  .student-list .list-group-item {
+    background-color: #272829;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container">
-  <h2 class="mt-4">Admin - View Submissions</h2>
+  <h2 class="mt-4">Admin – Submissions</h2>
 
-  <div class="accordion" id="usersAccordion">
-    {% for user, modules in grouped.items() %}
-      {% call(header) accordion_item("usersAccordion", loop.index) %}
-        {% if header %}
-          <h3 class="accordion-item-name">{{ user }}</h3>
-        {% else %}
-          <div class="accordion" id="modules-{{ loop.index }}">
-            {% for module, items in modules.items() %}
-              {% call(header) accordion_item("modules-{}".format(loop.index), loop.index) %}
-                {% if header %}
-                  <h5 class="accordion-item-name">{{ module }}</h5>
-                {% else %}
-                  <table class="table table-sm table-bordered table-striped">
-                    <thead>
-                      <tr>
-                        <th>Challenge</th>
-                        <th>Answered</th>
-                        <th>Answer</th>
-                        <th>Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for challenge, submission in items %}
-                      <tr>
-                        <td>{{ challenge.name }}</td>
-                        <td>{{ "✓" if submission else "✕" }}</td>
-                        <td>{{ submission.provided if submission else "-" }}</td>
-                        <td>{{ submission.date.strftime('%Y-%m-%d %H:%M:%S') if submission else "-" }}</td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                {% endif %}
-              {% endcall %}
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endcall %}
+  <form method="get" class="form-inline mb-3">
+    <div class="input-group w-100">
+      <input
+        type="text"
+        name="q"
+        class="form-control"
+        placeholder="Search by username…"
+        value="{{ q }}"
+      >
+      <div class="input-group-append">
+        <button class="btn btn-primary" type="submit">
+          <i class="fas fa-search"></i>
+        </button>
+      </div>
+    </div>
+    {% if q %}
+      <a href="{{ url_for('submissions.view') }}" class="btn btn-link ml-2">Clear</a>
+    {% endif %}
+  </form>
+
+  <ul class="list-group student-list">
+    {% for user in users %}
+      <li class="list-group-item">
+        <a href="{{ url_for('pwncollege_users.view_other', user_id=user.id) }}">
+          {{ user.name }}
+        </a>
+      </li>
     {% endfor %}
-  </div>
+    {% if not users %}
+      <li class="list-group-item text-muted">No students found.</li>
+    {% endif %}
+  </ul>
 </div>
 {% endblock %}
