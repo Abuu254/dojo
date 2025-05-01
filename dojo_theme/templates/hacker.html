@@ -57,71 +57,97 @@
       </div>
     </div>
   </div>
-  {% if user.id == current_user.id or current_user.type == "admin" %}
-    {% for dojo in dojos %}
-    {% if dojo.id in late_day_usage and dojo.course %}
-      {% set used, total = late_day_usage[dojo.id] %}
-      <div class="container mt-3">
-        <h4>Late Days <strong>Used:</strong> {{ used }} / {{ total }}</h4>
-      </div>
-    {% endif %}
-  {% endfor %}
-  {% endif %}
 
   <!-- displaying grades -->
-  {% for dojo in dojos %}
-    {% if dojo.id in course_grades %}
-      {% if user.id == current_user.id or current_user.type == "admin" %}
-        <div class="container">
-          <h2>{{ dojo.name }} Course Grades</h2>
-          <h4>{{ user.name }}’s current grade in the class:
-            <code style="font-size: 1.5em">{{ course_grades[dojo.id].letter_grade }}</code>
-            ({{ "%.2f%%"|format(100 * course_grades[dojo.id].overall_grade) }})
-          </h4>
-          <div class="row mt-3">
-            <div class="col-md-12">
-              <table class="table table-striped">
-                <thead>
-                  <tr>
-                    <td><b>Name</b></td>
-                    <td><b>Due Date</b></td>
-                    {% if course_grades[dojo.id].show_extra_late_date %}
-                      <td><b>Extra Late Date</b></td>
-                    {% endif %}
-                    <td><b>Weight</b></td>
-                    <td><b>Progress</b></td>
-                    <td><b>Credit</b></td>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for assessment_grade in course_grades[dojo.id].assessment_grades %}
-                    {% if assessment_grade.credit is boolean %}
-                      {% set credit = "✓" if assessment_grade.credit else "✕" %}
-                    {% elif assessment_grade.credit is number %}
-                      {% set credit = "%.2f%%" | format(100 * assessment_grade.credit) %}
-                    {% endif %}
+  {% if user.id == current_user.id or current_user.type == 'admin' %}
+    {% for course in hacker_courses %}
+      <div class="container mt-4">
+        <h2>{{ course.dojo.name }} Course Progress</h2>
+        <br>
+        <h3>Grade in the class:
+          <code style="font-size: 2em">{{ course.letter_grade }}</code>
+          ({{ "%.2f%%"|format(100 * course.overall_grade) }})
+        </h3>
+        <br>
+        <h5>Late days used: {{ late_day_usage[course.dojo.id][0] }} / {{ late_day_usage[course.dojo.id][1] }}</h5>
+        <br>
+        <h2>Modules</h2>
+        <div class="accordion mt-4" id="accordion-{{ course.dojo.id }}">
+          {% for assessment_grade in course.assessment_grades %}
+            {% if assessment_grade.module_id %}
+              {% call(header) accordion_item("accordion-"~course.dojo.id, loop.index) %}
+                {% if header %}
+                <div class="w-100">
+                  <h4 class="mb-2">{{ assessment_grade.name }}</h4>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Due Date</th>
+                        {% if show_extra_late_date and assessment_grade.extra_late_date %}
+                          <th>Extra Late Date</th>
+                        {% endif %}
+                        <th>Weight</th>
+                        <th>Progress</th>
+                        <th>Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{{ assessment_grade.date }}</td>
+                        {% if show_extra_late_date and assessment_grade.extra_late_date %}
+                          <td>{{ assessment_grade.extra_late_date }}</td>
+                        {% endif %}
+                        <td>{{ "%.2f" | format(assessment_grade.weight) }}</td>
+                        <td>{{ assessment_grade.progress }}</td>
+                        <td>
+                          {% if assessment_grade.credit is boolean %}
+                            {{ "✓" if assessment_grade.credit else "✕" }}
+                          {% elif assessment_grade.credit is number %}
+                            {{ "%.2f%%" | format(100 * assessment_grade.credit) }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                {% if assessment_grade.challenges %}
+                <table style="font-size: 1rem;">
+                  <thead>
                     <tr>
-                      <td>{{ assessment_grade.name }}</td>
-                      <td>{{ assessment_grade.date }}</td>
-                      {% if course_grades[dojo.id].show_extra_late_date %}
-                        <td>{{ assessment_grade.extra_late_date }}</td>
-                      {% endif %}
-                      <td>{{ assessment_grade.weight if "weight" in assessment_grade else "" }}</td>
-                      <td>{{ assessment_grade.progress }}</td>
-                      <td>{{ credit }}</td>
+                      <th>Name</th>
+                      <th>Status</th>
+                      <th>Timestamp</th>
+                      <th>Weight</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </thead>
+                  <tbody>
+                    {% for ch in assessment_grade.challenges %}
+                      <tr>
+                        <td>{{ ch.name }}</td>
+                        <td>{{ "✓" if ch.solved else "✕" }}</td>
+                        <td>{{ ch.timestamp or "--" }}</td>
+                        <td>{{ "%.2f%%" | format(ch.weight * 100) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p>No challenges for this module.</p>
+              {% endif %}
+            {% endif %}
+              {% endcall %}
+            {% endif %}
+          {% endfor %}
         </div>
-      {% endif %}
-    {% endif %}
-  {% endfor %}
+      </div>
+    {% endfor %}
+  {% endif %}
 
 
-  <div class="container">
+
+
+  <!-- <div class="container">
     {% for dojo in dojos if dojo_scores.user_ranks[user.id] and dojo_scores.user_ranks[user.id][dojo.id] and not dojo.course %}
       {% set rank = dojo_scores.user_ranks[user.id][dojo.id] %}
       {% set max_rank = dojo_scores.dojo_ranks[dojo.id] | length %}
@@ -194,5 +220,5 @@
         }
       </style>
       <br>
-    {% endfor %}
+    {% endfor %} -->
 {% endblock %}
