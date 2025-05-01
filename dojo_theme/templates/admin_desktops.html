@@ -1,27 +1,27 @@
-{% extends "admin/base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>Joinable User Desktops Sessions</h1>
+    <h1>Active Docker Desktop Sessions</h1>
   </div>
 </div>
+
 <div class="container">
   <div id="desktops" class="row">
     <div class="col-md-12">
-      <table class="table table-striped">
+      <table id="containers-table" class="table table-striped">
         <thead>
           <tr>
-            <td scope="col"><b>Desktop Sessions</b></td>
+            <th>User</th>
+            <th>Challenge</th>
+            <th>Memory Used</th>
+            <th>Memory Limit</th>
+            <th>Memory %</th>
+            <th>Action</th>
           </tr>
         </thead>
-        <tbody>
-          {% for user in users %}
-          <tr>
-            <td><a href="/desktop/{{ user.id }}">{{ user.name }}</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
+        <tbody></tbody>
       </table>
     </div>
   </div>
@@ -29,4 +29,54 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  // Jinja will render these to the fully-qualified paths (including any mount prefix)
+  const desktopUrlTpl = "{{ url_for('admin_docker.view_user_workspace', user_id=-1, service='desktop') }}";
+  const codeUrlTpl    = "{{ url_for('admin_docker.view_user_workspace', user_id=-1, service='code') }}";
+  const stopUrlTpl    = "{{ url_for('admin_docker.stop_user_container', user_id=-1) }}";
+
+  function renderTable(containers) {
+    const tbody = document.querySelector("#containers-table tbody");
+    tbody.innerHTML = "";
+
+    containers.forEach(c => {
+      const desktopUrl = desktopUrlTpl.replace("/-1/desktop", `/${c.user_id}/desktop`);
+      const codeUrl    = codeUrlTpl   .replace("/-1/code",    `/${c.user_id}/code`);
+      const stopUrl    = stopUrlTpl   .replace("/-1",          `/${c.user_id}`);
+
+      tbody.insertAdjacentHTML("beforeend", `
+        <tr>
+          <td>${c.user_name}</td>
+          <td>${c.challenge}</td>
+          <td>${Math.floor(c.mem_usage/1024/1024)} MB</td>
+          <td>${Math.floor(c.mem_limit/1024/1024)} MB</td>
+          <td>${c.mem_percent}%</td>
+          <td>
+            <a class="btn btn-sm btn-primary" href="${desktopUrl}">Join Desktop</a>
+            <a class="btn btn-sm btn-secondary" href="${codeUrl}">Join Code</a>
+            <form method="POST" action="${stopUrl}" style="display:inline;">
+              <button class="btn btn-sm btn-danger"
+                onclick="return confirm('Stop this container?')">
+                Stop
+              </button>
+            </form>
+          </td>
+        </tr>
+      `);
+    });
+  }
+
+  async function refresh() {
+    const res = await fetch("{{ url_for('admin_docker.view_admin_desktops_json') }}", {
+      credentials: "same-origin"
+    });
+    const data = await res.json();
+    renderTable(data);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    refresh();
+    setInterval(refresh, 60 * 1000);
+  });
+</script>
 {% endblock %}
