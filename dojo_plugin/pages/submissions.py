@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request
 from CTFd.utils.decorators import admins_only
 from CTFd.models import Submissions, Challenges, Users
 from sqlalchemy.orm import joinedload
@@ -6,7 +6,7 @@ from sqlalchemy import cast, String
 from collections import defaultdict
 
 # Import DojoChallenges to correctly map challenges to dojos
-from ..models import DojoChallenges, Dojos
+from ..models import DojoChallenges, Dojos, DojoStudents
 
 # Create a new Blueprint for submissions
 submissions_bp = Blueprint("submissions", __name__, url_prefix="/admin/submissions")
@@ -14,46 +14,25 @@ submissions_bp = Blueprint("submissions", __name__, url_prefix="/admin/submissio
 @submissions_bp.route("/")
 @admins_only
 def view():
-    # Get only the course dojo
-    course_dojo = Dojos.query.filter(Dojos.data["type"] == "course").first()
-    if not course_dojo:
-        return render_template("submissions.html", grouped={})
+    q = request.args.get("q", "").strip()
 
-    # Get challenges for that dojo
-    dojo_challenges = (
-        DojoChallenges.query
-        .filter_by(dojo_id=course_dojo.dojo_id)
-        .options(joinedload(DojoChallenges.challenge), joinedload(DojoChallenges.module))
-        .all()
+    # find the 'course' dojo
+    course_dojo = Dojos.query.filter(Dojos.data["type"] == "course").first_or_404()
+
+    # join to students to get only official enrollees
+    users_q = (
+        Users.query
+        .join(DojoStudents, DojoStudents.user_id == Users.id)
+        .filter(
+            DojoStudents.dojo == course_dojo,
+        )
     )
 
-    # Group challenges per module
-    modules = defaultdict(list)
-    for dc in dojo_challenges:
-        if dc.module and dc.challenge:
-            modules[dc.module.name].append(dc.challenge)
+    #  search
+    if q:
+        users_q = users_q.filter(Users.name.ilike(f"%{q}%"))
 
-    users = Users.query.filter(Users.type != "admin").all()
-    challenge_ids = [dc.challenge_id for dc in dojo_challenges]
+    users = users_q.order_by(Users.name).all()
 
-    # Get relevant submissions
-    submissions = (
-        Submissions.query
-        .filter(Submissions.challenge_id.in_(challenge_ids))
-        .filter(Submissions.user_id.in_([u.id for u in users]))
-        .all()
-    )
+    return render_template("submissions.html", users=users, q=q)
 
-    submission_map = defaultdict(dict)
-    for sub in submissions:
-        submission_map[sub.user_id][sub.challenge_id] = sub
-
-    # Group by user -> module -> (challenge, submission)
-    grouped_submissions = defaultdict(lambda: defaultdict(list))
-    for user in users:
-        for module_name, challenges in modules.items():
-            for challenge in challenges:
-                submission = submission_map.get(user.id, {}).get(challenge.id)
-                grouped_submissions[user.name][module_name].append((challenge, submission))
-
-    return render_template("submissions.html", grouped=grouped_submissions)
