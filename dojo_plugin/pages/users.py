@@ -28,47 +28,43 @@ def view_hacker(user, bypass_hidden=False):
              .viewable(user=get_current_user())
              .filter(Dojos.data["type"] != "hidden")
              .all())
-    user_solves = {}
-    course_grade_details = {}
+
+    hacker_courses = []
     late_day_usage = {}
 
     for dojo in dojos:
         if not dojo.course:
-            dojo_id = dojo.id
-            user_solves[dojo_id] = {}
+            continue
 
-            for module in dojo.modules:
-                module_id = module.id
-                solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
+        student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+        if not (student and student.official):
+            continue
 
-                if solves:
-                    user_solves[dojo_id][module_id] = {
-                        solve.challenge_id: solve.date.strftime("%Y-%m-%d %H:%M:%S") for solve in solves
-                    }
-        if dojo.course:
-            student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-            if student and student.official:
-                result = next(grade(dojo, user, ignore_pending=True), None)
-                if result:
-                    course_grade_details[dojo.id] = result
-                # Add late day usage per course
-                total_late_days = dojo.course.get("late_days", 0)
-                used_late_days = (
-                    db.session.query(db.func.sum(LateDayUsage.late_days_used))
-                    .filter_by(user_id=user.id, dojo_id=dojo.dojo_id)
-                    .scalar()
-                ) or 0
-                late_day_usage[dojo.id] = (used_late_days, total_late_days)
+        gd = next(grade(dojo, user, ignore_pending=True), None)
+        if not gd:
+            continue
+
+        # attach the Dojo object so the template can read dojo.name
+        gd["dojo"] = dojo
+
+        # compute late days
+        total_late = dojo.course.get("late_days", 0)
+        used_late = db.session.query(db.func.sum(LateDayUsage.late_days_used)).filter_by(user_id=user.id, dojo_id=dojo.dojo_id).scalar() or 0
+
+        late_day_usage[dojo.id] = (used_late, total_late)
+
+        hacker_courses.append(gd)
 
     return render_template(
         "hacker.html",
-        dojos=dojos, user=user,
-        dojo_scores=dojo_scores(), module_scores=module_scores(),
-        belts=get_belts(), badges=get_viewable_emojis(user),
-        user_solves=user_solves,
-        course_grades=course_grade_details,
+        user=user,
         current_user=get_current_user(),
+        hacker_courses=hacker_courses,
         late_day_usage=late_day_usage,
+        dojo_scores=dojo_scores(),
+        module_scores=module_scores(),
+        belts=get_belts(),
+        badges=get_viewable_emojis(user),
     )
 
 @users.route("/hacker/<int:user_id>")
