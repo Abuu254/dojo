@@ -42,6 +42,6 @@ def settings_override():
         discord_enabled=bool(DISCORD_CLIENT_ID),
         discord_member=discord_member,
         discord_avatar_asset=discord_avatar_asset,
-        prevent_name_change=prevent_name_change,
+        # prevent_name_change=prevent_name_change,
         infos=infos,
     )
