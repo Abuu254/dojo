@@ -96,9 +96,11 @@ INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL") or "False
 WINDOWS_VM_ENABLED = os.getenv("WINDOWS_VM") == "full"
 # added
 CAS_SERVER = os.getenv("CAS_SERVER", "https://secure.its.yale.edu/cas")
-SERVICE_URL = os.getenv("SERVICE_URL", "http://localhost:50040/cas/callback")
+SERVICE_URL = DOJO_HOST
 YALIES_API_TOKEN = os.getenv("YALIES_API_TOKEN")
-# YALIES_API_TOKEN = 'b74YHWOfRwifOjN2BwbiGA2yYYlMqfa2Piuw-fc7lGpMwP_vTxMhkA'
+# A comma-separated list of Yale NetIDs who should be admins
+CAS_ADMIN_NETIDS = os.getenv("CAS_ADMIN_NETIDS", "").split(",")
+
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 for config_option in missing_errors:
     config_value = globals()[config_option]
