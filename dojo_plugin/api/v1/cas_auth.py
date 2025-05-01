@@ -1,20 +1,22 @@
 import requests
 import re
 import yalies
+from urllib.parse import urlencode
 from flask import Blueprint, redirect, request, session, url_for, flash
-from CTFd.models import Users, db
+from CTFd.models import Users, db, Admins
 from CTFd.utils.security.auth import login_user, logout_user
 from CTFd.utils.logging import log
-from ...config import CAS_SERVER, SERVICE_URL,YALIES_API_TOKEN
+from ...config import CAS_SERVER, SERVICE_URL,YALIES_API_TOKEN,CAS_ADMIN_NETIDS
 
 cas_auth_bp = Blueprint("cas_auth", __name__, url_prefix="/cas")
 
 @cas_auth_bp.route("/login")
 def cas_login():
     """Redirect user to CAS for authentication."""
-    next_url = request.args.get("next")
-    session["next"] = next_url
-    return redirect(f"{CAS_SERVER}/login?service={SERVICE_URL}")
+    session["next"] = request.args.get("next")
+    service_url = url_for("cas_auth.cas_callback", _external=True)
+    login_url = f"{CAS_SERVER}/login?{urlencode({'service': service_url})}"
+    return redirect(login_url)
 
 @cas_auth_bp.route("/callback")
 def cas_callback():
@@ -25,10 +27,14 @@ def cas_callback():
         flash("CAS authentication failed: No ticket provided.", "error")
         return redirect(url_for("auth.login"))
 
-    validate_url = f"{CAS_SERVER}/serviceValidate?service={SERVICE_URL}&ticket={ticket}"
+    validate_url = (
+        f"{CAS_SERVER}/serviceValidate?"
+        + urlencode({
+            "service": url_for("cas_auth.cas_callback", _external=True),
+            "ticket": ticket,
+        })
+    )
     response = requests.get(validate_url)
-
-    # print("CAS Response:", response.text)
 
     match = re.search(r"<cas:user>(.*?)</cas:user>", response.text)
     if not match:
@@ -37,11 +43,25 @@ def cas_callback():
 
     username = match.group(1).strip()
 
+    # Create or fetch the CTFd user record
     user = Users.query.filter_by(name=username).first()
-    # person = get_user(username)
     if not user:
-        user = Users(name=username, email=person.get('email', f"{username}@yale.edu"), password=None, verified=True)
+        user = Users(name=username, verified=True)
         db.session.add(user)
+        db.session.commit()
+
+    # If this NetID is in your admin list, promote them
+    if username in CAS_ADMIN_NETIDS:
+        user.type = "admin"
+        # hide them from rankings
+        user.hidden = True
+        if not Admins.query.filter_by(name=username).first():
+            db.session.add(Admins(
+                name=username,
+                email=user.email or "",
+                type="admin",
+                hidden=True,
+            ))
         db.session.commit()
 
     login_user(user)
