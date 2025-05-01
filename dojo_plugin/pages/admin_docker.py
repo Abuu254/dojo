@@ -26,10 +26,7 @@ def view_user_workspace(user_id, service):
     if not container:
         abort(404)
 
-    password = container_password(container, service, "interact")[:8]
-    # access_code = container_password(container, service)
-
-    return render_template("workspace.html", service=service, user_id=user.id, password=password, active=True)
+    return render_template("workspace.html", iframe_name="workspace", service=service, user_id=user_id, active=True)
 
 @admin_docker_bp.route("/stop/<int:user_id>", methods=["POST"])
 @bypass_csrf_protection
