@@ -1,5 +1,5 @@
 import requests
-from flask import Blueprint, render_template, url_for, redirect, request, current_app, session
+from flask import Blueprint, render_template, url_for, redirect, request, current_app, session,jsonify
 from CTFd.utils.decorators import admins_only
 from CTFd.models import Users
 from CTFd.plugins import bypass_csrf_protection
@@ -13,37 +13,8 @@ admin_docker_bp = Blueprint("admin_docker", __name__, url_prefix="/admin")
 @admin_docker_bp.route("/desktops")
 @admins_only
 def view_admin_desktops():
-    full_stats = get_full_container_stats()
-    user_ids = {
-        int(stats["labels"].get("dojo.user_id", -1))
-        for stats in full_stats
-        if "labels" in stats and "dojo.user_id" in stats["labels"]
-    }
+    return render_template("admin_desktops.html")
 
-    user_map = {
-        user.id: user.name
-        for user in Users.query.filter(Users.id.in_(user_ids)).all()
-    }
-
-    filtered = []
-    for stat in full_stats:
-        labels = stat.get("labels", {})
-        user_id = int(labels.get("dojo.user_id", -1))
-        if user_id == -1:
-            continue
-
-        filtered.append({
-            "user_id": user_id,
-            "user_name": user_map.get(user_id, "Unknown"),
-            "challenge": labels.get("dojo.challenge_id", "Unknown"),
-            "mem_usage": stat.get("mem_usage", 0),
-            "mem_percent": stat.get("mem_percent", 0),
-            "mem_limit": stat.get("mem_limit", 0),
-        })
-
-    return render_template("admin_desktops.html", containers=filtered)
-
-@admin_docker_bp.route("/workspace/<int:user_id>", defaults={"service": "desktop"})
 @admin_docker_bp.route("/workspace/<int:user_id>/<service>")
 @admins_only
 def view_user_workspace(user_id, service):
@@ -55,8 +26,8 @@ def view_user_workspace(user_id, service):
     if not container:
         abort(404)
 
-    password = container_password(container, service, "view")[:8]
-    access_code = container_password(container, service)
+    password = container_password(container, service, "interact")[:8]
+    # access_code = container_password(container, service)
 
     return render_template("workspace.html", service=service, user_id=user.id, password=password, active=True)
 
@@ -73,3 +44,31 @@ def stop_user_container(user_id):
 
     return redirect(url_for("admin_docker.view_admin_desktops"))
 
+@admin_docker_bp.route("/desktops.json")
+@admins_only
+def view_admin_desktops_json():
+    full_stats = get_full_container_stats()
+    user_ids = {
+        int(s["labels"].get("dojo.user_id", -1))
+        for s in full_stats
+        if "labels" in s and "dojo.user_id" in s["labels"]
+    }
+    user_map = {
+        u.id: u.name for u in Users.query.filter(Users.id.in_(user_ids)).all()
+    }
+
+    containers = []
+    for stat in full_stats:
+        labels = stat.get("labels", {})
+        uid = int(labels.get("dojo.user_id", -1))
+        if uid == -1:
+            continue
+        containers.append({
+            "user_id":      uid,
+            "user_name":    user_map.get(uid, "Unknown"),
+            "challenge":    labels.get("dojo.challenge_id", "Unknown"),
+            "mem_usage":    stat.get("mem_usage", 0),
+            "mem_limit":    stat.get("mem_limit", 0),
+            "mem_percent":  stat.get("mem_percent", 0),
+        })
+    return jsonify(containers)
