@@ -37,6 +37,7 @@ from .api import api
 # custom
 from .pages.submissions import submissions_bp
 from .api.v1.cas_auth import cas_auth_bp
+from .pages.admin_docker import admin_docker_bp
 
 class DojoChallenge(BaseChallenge):
     id = "dojo"
@@ -155,6 +156,8 @@ def load(app):
     # custom
     app.register_blueprint(submissions_bp)
     app.register_blueprint(cas_auth_bp)
+    app.register_blueprint(admin_docker_bp)
+
 
 
     app.jinja_env.filters["markdown"] = render_markdown
